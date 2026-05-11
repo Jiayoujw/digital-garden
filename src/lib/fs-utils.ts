@@ -2,9 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 import type { Note, NoteFrontmatter, NoteSummary } from './types';
-
-const NOTES_DIR = path.join(process.cwd(), 'data', 'notes');
-const DAILY_DIR = path.join(process.cwd(), 'data', 'daily');
+import { NOTES_DIR, DAILY_DIR, ensureDirectories } from './data-dir';
 
 export function slugify(title: string): string {
   return title
@@ -18,13 +16,6 @@ export function slugify(title: string): string {
 
 export function slugToFilename(slug: string): string {
   return `${slug}.md`;
-}
-
-export function ensureDirectories() {
-  return Promise.all([
-    fs.mkdir(NOTES_DIR, { recursive: true }),
-    fs.mkdir(DAILY_DIR, { recursive: true }),
-  ]);
 }
 
 export async function readNote(slug: string): Promise<Note> {

@@ -4,11 +4,10 @@ import path from 'path';
 import matter from 'gray-matter';
 import { createSearchEngine, search } from '@/lib/search-engine';
 import type { Note } from '@/lib/types';
-
-const NOTES_DIR = path.join(process.cwd(), 'data', 'notes');
+import { NOTES_DIR, ensureDirectories } from '@/lib/data-dir';
 
 async function loadAllNotes(): Promise<Note[]> {
-  await fs.mkdir(NOTES_DIR, { recursive: true });
+  await ensureDirectories();
   const files = await fs.readdir(NOTES_DIR);
   const mdFiles = files.filter((f) => f.endsWith('.md'));
   const notes: Note[] = [];

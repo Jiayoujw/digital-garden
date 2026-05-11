@@ -3,11 +3,10 @@ import path from 'path';
 import matter from 'gray-matter';
 import { extractWikilinks } from './wikilink-parser';
 import type { GraphData, GraphNode, GraphLink, NoteSummary } from './types';
-
-const NOTES_DIR = path.join(process.cwd(), 'data', 'notes');
+import { NOTES_DIR, ensureDirectories } from './data-dir';
 
 export async function buildGraphIndex(): Promise<GraphData> {
-  await fs.mkdir(NOTES_DIR, { recursive: true });
+  await ensureDirectories();
   const files = await fs.readdir(NOTES_DIR);
   const mdFiles = files.filter((f) => f.endsWith('.md'));
 
