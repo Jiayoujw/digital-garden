@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Graph2D } from '@/components/graph/Graph2D';
 import { Graph3D } from '@/components/graph/Graph3D';
 import { GraphControls } from '@/components/graph/GraphControls';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { GraphData } from '@/lib/types';
 
 export default function GraphPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [mode, setMode] = useState<'2d' | '3d'>('2d');
   const [loading, setLoading] = useState(true);
@@ -38,9 +40,9 @@ export default function GraphPage() {
   if (graphData.nodes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <p className="text-[var(--color-text-muted)] text-lg">No graph data yet</p>
+        <p className="text-[var(--color-text-muted)] text-lg">{t('no_graph_data')}</p>
         <p className="text-[var(--color-text-muted)] text-sm">
-          Create notes with [[wikilinks]] to see your knowledge graph
+          {t('no_graph_data_desc')}
         </p>
       </div>
     );

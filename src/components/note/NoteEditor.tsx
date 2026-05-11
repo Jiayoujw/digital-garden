@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface NoteEditorProps {
   slug: string;
@@ -15,6 +16,7 @@ export function NoteEditor({
   initialTitle,
   initialTags,
 }: NoteEditorProps) {
+  const { t } = useLanguage();
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [tags, setTags] = useState(initialTags.join(', '));
@@ -38,7 +40,7 @@ export function NoteEditor({
             content: contentVal,
             tags: tagsVal
               .split(',')
-              .map((t) => t.trim())
+              .map((tag) => tag.trim())
               .filter(Boolean),
           }),
         });
@@ -68,7 +70,6 @@ export function NoteEditor({
     setContent(val);
     debounceSave(title, val, tags);
 
-    // Wikilink autocomplete
     const pos = e.target.selectionStart;
     const before = val.slice(0, pos);
     const match = before.match(/\[\[([^\]\n]*)$/);
@@ -90,12 +91,12 @@ export function NoteEditor({
     }
   };
 
-  const handleSuggestionClick = (slug: string) => {
+  const handleSuggestionClick = (s: string) => {
     const before = content.slice(0, cursorIdx);
     const after = content.slice(cursorIdx);
     const match = before.match(/\[\[([^\]\n]*)$/);
     if (match) {
-      const newBefore = before.slice(0, before.length - match[0].length) + `[[${slug}]]`;
+      const newBefore = before.slice(0, before.length - match[0].length) + `[[${s}]]`;
       const newContent = newBefore + after;
       setContent(newContent);
       setShowSuggestions(false);
@@ -114,10 +115,10 @@ export function NoteEditor({
             debounceSave(e.target.value, content, tags);
           }}
           className="flex-1 text-xl font-bold bg-transparent border-none outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
-          placeholder="Note title"
+          placeholder={t('note_title_placeholder')}
         />
         <span className="text-xs text-[var(--color-text-muted)] shrink-0">
-          {saving ? 'Saving...' : lastSaved ? `Saved ${lastSaved.toLocaleTimeString()}` : ''}
+          {saving ? t('saving') : lastSaved ? `${t('saved')} ${lastSaved.toLocaleTimeString()}` : ''}
         </span>
       </div>
       <input
@@ -128,14 +129,14 @@ export function NoteEditor({
           debounceSave(title, content, e.target.value);
         }}
         className="text-xs mb-3 px-1 py-1 bg-transparent border-b border-[var(--color-border)] outline-none text-[var(--color-text-secondary)] placeholder-[var(--color-text-muted)]"
-        placeholder="Tags: comma, separated"
+        placeholder={t('tags_placeholder')}
       />
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleContentChange}
-          placeholder="Start writing... Use [[wikilinks]] to connect notes"
+          placeholder={t('start_writing')}
           className="w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] leading-relaxed"
         />
         {showSuggestions && (
@@ -151,7 +152,7 @@ export function NoteEditor({
                 </button>
               ))
             ) : (
-              <p className="text-xs text-[var(--color-text-muted)] px-3 py-1">Type to search notes...</p>
+              <p className="text-xs text-[var(--color-text-muted)] px-3 py-1">{t('type_to_search')}</p>
             )}
           </div>
         )}

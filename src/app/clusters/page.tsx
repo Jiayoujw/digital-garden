@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { Cluster } from '@/lib/types';
 
 export default function ClustersPage() {
+  const { t } = useLanguage();
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,19 +30,19 @@ export default function ClustersPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-6">
-      <h1 className="text-2xl font-bold mb-2">Topic Clusters</h1>
+      <h1 className="text-2xl font-bold mb-2">{t('topic_clusters')}</h1>
       <p className="text-[var(--color-text-secondary)] mb-8 text-sm">
-        Notes automatically grouped by similarity of their connections
+        {t('clusters_desc')}
       </p>
 
       {clusters.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <span className="text-4xl">⬡</span>
           <p className="text-[var(--color-text-muted)] text-lg">
-            No clusters yet
+            {t('no_clusters_yet')}
           </p>
           <p className="text-[var(--color-text-muted)] text-sm">
-            Add more notes and links to see topic clusters emerge
+            {t('no_clusters_desc')}
           </p>
         </div>
       ) : (
@@ -58,7 +60,7 @@ export default function ClustersPage() {
                 <h3 className="font-semibold text-lg">{cluster.label}</h3>
               </div>
               <p className="text-xs text-[var(--color-text-muted)] mb-3">
-                {cluster.noteCount} {cluster.noteCount === 1 ? 'note' : 'notes'}
+                {cluster.noteCount} {cluster.noteCount === 1 ? t('note_singular') : t('note_plural')}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {cluster.noteSlugs.slice(0, 8).map((slug) => (
@@ -72,7 +74,7 @@ export default function ClustersPage() {
                 ))}
                 {cluster.noteSlugs.length > 8 && (
                   <span className="px-2 py-1 rounded-md text-xs text-[var(--color-text-muted)]">
-                    +{cluster.noteSlugs.length - 8} more
+                    {t('more_suffix', { n: cluster.noteSlugs.length - 8 })}
                   </span>
                 )}
               </div>

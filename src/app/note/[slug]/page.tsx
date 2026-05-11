@@ -5,10 +5,12 @@ import { NoteEditor } from '@/components/note/NoteEditor';
 import { NotePreview } from '@/components/note/NotePreview';
 import { BacklinksPanel } from '@/components/note/BacklinksPanel';
 import { TagList } from '@/components/note/TagList';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { Note } from '@/lib/types';
 
 export default function NotePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const { t } = useLanguage();
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'edit' | 'preview' | 'split'>('edit');
@@ -39,15 +41,15 @@ export default function NotePage({ params }: { params: Promise<{ slug: string }>
   if (!note) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <p className="text-[var(--color-text-muted)] text-lg">Note not found</p>
+        <p className="text-[var(--color-text-muted)] text-lg">{t('note_not_found')}</p>
         <p className="text-[var(--color-text-muted)] text-sm">
-          The note &quot;{slug}&quot; doesn&apos;t exist yet.
+          {t('note_not_found_desc', { slug })}
         </p>
         <a
           href="/"
           className="px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors text-sm"
         >
-          Go Home
+          {t('go_home')}
         </a>
       </div>
     );
@@ -56,36 +58,19 @@ export default function NotePage({ params }: { params: Promise<{ slug: string }>
   return (
     <div className="max-w-4xl mx-auto px-8 py-6 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-4">
-        <button
-          onClick={() => setMode('edit')}
-          className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-            mode === 'edit'
-              ? 'bg-[var(--color-accent)] text-white'
-              : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-          }`}
-        >
-          Edit
-        </button>
-        <button
-          onClick={() => setMode('preview')}
-          className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-            mode === 'preview'
-              ? 'bg-[var(--color-accent)] text-white'
-              : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-          }`}
-        >
-          Preview
-        </button>
-        <button
-          onClick={() => setMode('split')}
-          className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-            mode === 'split'
-              ? 'bg-[var(--color-accent)] text-white'
-              : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-          }`}
-        >
-          Split
-        </button>
+        {(['edit', 'preview', 'split'] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+              mode === m
+                ? 'bg-[var(--color-accent)] text-white'
+                : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            {t(m)}
+          </button>
+        ))}
       </div>
 
       {mode === 'edit' && (

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { format, subDays, addDays, startOfWeek, isToday } from 'date-fns';
+import { enUS, zhCN } from 'date-fns/locale';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 export default function DailyPage() {
-  const router = useRouter();
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === 'zh' ? zhCN : enUS;
   const today = format(new Date(), 'yyyy-MM-dd');
   const [selectedDate, setSelectedDate] = useState(today);
   const [content, setContent] = useState('');
@@ -51,26 +53,26 @@ export default function DailyPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-6 h-full flex flex-col">
-      <h1 className="text-2xl font-bold mb-6">Daily Notes</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('daily_notes')}</h1>
 
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => navigateDate(-1)}
           className="px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
         >
-          ← Prev
+          {t('prev')}
         </button>
         <button
           onClick={() => setSelectedDate(today)}
           className="px-4 py-1.5 rounded-lg bg-[var(--color-accent)] text-white text-sm hover:bg-[var(--color-accent-hover)] transition-colors"
         >
-          Today
+          {t('today')}
         </button>
         <button
           onClick={() => navigateDate(1)}
           className="px-3 py-1.5 rounded-lg bg-[var(--color-bg-tertiary)] text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
         >
-          Next →
+          {t('next')}
         </button>
       </div>
 
@@ -90,30 +92,34 @@ export default function DailyPage() {
             }`}
           >
             {format(new Date(d), 'd')}
-            <div className="text-[10px] opacity-60">{format(new Date(d), 'EEE')}</div>
+            <div className="text-[10px] opacity-60">
+              {format(new Date(d), 'EEE', { locale: dateLocale })}
+            </div>
           </button>
         ))}
       </div>
 
-      <h2 className="text-xl font-semibold mb-4">{selectedDate}</h2>
+      <h2 className="text-xl font-semibold mb-4">
+        {format(new Date(selectedDate), 'PPP', { locale: dateLocale })}
+      </h2>
 
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         onBlur={save}
-        placeholder="What's on your mind today?"
+        placeholder={t('whats_on_mind')}
         className="flex-1 w-full min-h-[300px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors leading-relaxed"
       />
 
       <div className="flex justify-between items-center mt-3">
         <span className="text-xs text-[var(--color-text-muted)]">
-          {saving ? 'Saving...' : 'Auto-saves on blur'}
+          {saving ? t('saving') : t('auto_saves')}
         </span>
         <Link
           href="/daily"
           className="text-xs text-[var(--color-accent-hover)] hover:underline"
         >
-          All daily notes →
+          {t('all_daily_notes')}
         </Link>
       </div>
     </div>

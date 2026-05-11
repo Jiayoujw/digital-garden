@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { NoteSummary } from '@/lib/types';
 
 interface BacklinksPanelProps {
@@ -9,6 +10,7 @@ interface BacklinksPanelProps {
 }
 
 export function BacklinksPanel({ slug }: BacklinksPanelProps) {
+  const { t } = useLanguage();
   const [backlinks, setBacklinks] = useState<NoteSummary[]>([]);
   const [forwardLinks, setForwardLinks] = useState<NoteSummary[]>([]);
 
@@ -29,7 +31,7 @@ export function BacklinksPanel({ slug }: BacklinksPanelProps) {
       {forwardLinks.length > 0 && (
         <div className="mb-4">
           <h3 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
-            Links to
+            {t('links_to')}
           </h3>
           <div className="flex flex-wrap gap-2">
             {forwardLinks.map((link) => (
@@ -47,7 +49,7 @@ export function BacklinksPanel({ slug }: BacklinksPanelProps) {
       {backlinks.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
-            Linked from
+            {t('linked_from')}
           </h3>
           <div className="flex flex-wrap gap-2">
             {backlinks.map((link) => (

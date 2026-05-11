@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface SearchResult {
   slug: string;
@@ -14,6 +15,7 @@ interface SearchResult {
 }
 
 function SearchContent() {
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const q = searchParams.get('q') ?? '';
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -37,13 +39,13 @@ function SearchContent() {
   return (
     <div className="max-w-3xl mx-auto px-8 py-6">
       <h1 className="text-2xl font-bold mb-2">
-        {q ? `Search: "${q}"` : 'Search'}
+        {q ? t('search_colon', { q }) : t('search')}
       </h1>
       {q && (
         <p className="text-[var(--color-text-secondary)] text-sm mb-8">
           {loading
-            ? 'Searching...'
-            : `${results.length} result${results.length !== 1 ? 's' : ''}`}
+            ? t('searching')
+            : `${results.length} ${results.length !== 1 ? t('results') : t('result')}`}
         </p>
       )}
 
@@ -51,10 +53,10 @@ function SearchContent() {
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <span className="text-4xl">🔍</span>
           <p className="text-[var(--color-text-muted)] text-lg">
-            Search your notes
+            {t('search_your_notes')}
           </p>
           <p className="text-[var(--color-text-muted)] text-sm">
-            Use the search bar to find notes by title, content, or tags
+            {t('search_your_notes_hint')}
           </p>
         </div>
       )}
@@ -69,10 +71,10 @@ function SearchContent() {
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <span className="text-4xl">🌱</span>
           <p className="text-[var(--color-text-muted)] text-lg">
-            No notes found
+            {t('no_notes_found')}
           </p>
           <p className="text-[var(--color-text-muted)] text-sm">
-            Try different keywords
+            {t('try_different_keywords')}
           </p>
         </div>
       )}
@@ -88,12 +90,12 @@ function SearchContent() {
               <h3 className="font-medium">{result.title}</h3>
               {result.score !== undefined && (
                 <span className="text-[10px] text-[var(--color-text-muted)]">
-                  {Math.round(result.score * 100)}% match
+                  {t('match_percent', { p: Math.round(result.score * 100) })}
                 </span>
               )}
             </div>
             <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-2">
-              {result.snippet || 'No content'}
+              {result.snippet || t('no_content')}
             </p>
             {result.tags.length > 0 && (
               <div className="flex gap-1.5">
