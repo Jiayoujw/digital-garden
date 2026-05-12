@@ -1,31 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import matter from 'gray-matter';
-import { createSearchEngine, search } from '@/lib/search-engine';
+import { createSearchEngine, getSearchEngine, search } from '@/lib/search-engine';
+import { listNotes, readNote } from '@/lib/fs-utils';
 import type { Note } from '@/lib/types';
-import { NOTES_DIR, ensureDirectories } from '@/lib/data-dir';
 
 async function loadAllNotes(): Promise<Note[]> {
-  await ensureDirectories();
-  const files = await fs.readdir(NOTES_DIR);
-  const mdFiles = files.filter((f) => f.endsWith('.md'));
+  const summaries = await listNotes();
   const notes: Note[] = [];
-  for (const file of mdFiles) {
-    const rawContent = await fs.readFile(path.join(NOTES_DIR, file), 'utf-8');
-    const parsed = matter(rawContent);
-    notes.push({
-      slug: file.replace(/\.md$/, ''),
-      path: file,
-      frontmatter: {
-        title: parsed.data.title ?? file.replace(/\.md$/, ''),
-        tags: parsed.data.tags ?? [],
-        created: parsed.data.created ?? '',
-        updated: parsed.data.updated ?? '',
-      },
-      content: parsed.content,
-      rawContent,
-    });
+  for (const s of summaries) {
+    try {
+      const note = await readNote(s.slug);
+      notes.push(note);
+    } catch { /* skip unreadable notes */ }
   }
   return notes;
 }
@@ -35,8 +20,14 @@ export async function GET(request: NextRequest) {
   if (!q || q.trim().length < 1) {
     return NextResponse.json([]);
   }
-  const notes = await loadAllNotes();
-  createSearchEngine(notes);
+
+  // Use cached engine if available, otherwise build
+  let engine = getSearchEngine();
+  if (!engine) {
+    const notes = await loadAllNotes();
+    engine = createSearchEngine(notes);
+  }
+
   const results = search(q).slice(0, 20).map((r) => ({
     slug: r.item.slug,
     title: r.item.frontmatter.title,

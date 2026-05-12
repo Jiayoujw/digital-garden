@@ -2,8 +2,16 @@ import Fuse from 'fuse.js';
 import type { Note } from './types';
 
 let fuse: Fuse<Note> | null = null;
+let lastBuilt = 0;
+let lastNoteCount = 0;
+const CACHE_TTL = 120_000; // 2 minutes
 
 export function createSearchEngine(notes: Note[]): Fuse<Note> {
+  const now = Date.now();
+  if (fuse && notes.length === lastNoteCount && now - lastBuilt < CACHE_TTL) {
+    return fuse;
+  }
+
   fuse = new Fuse(notes, {
     keys: [
       { name: 'frontmatter.title', weight: 3 },
@@ -15,7 +23,19 @@ export function createSearchEngine(notes: Note[]): Fuse<Note> {
     includeScore: true,
     minMatchCharLength: 2,
   });
+  lastBuilt = now;
+  lastNoteCount = notes.length;
   return fuse;
+}
+
+export function getSearchEngine(): Fuse<Note> | null {
+  return fuse;
+}
+
+export function invalidateSearchCache(): void {
+  fuse = null;
+  lastBuilt = 0;
+  lastNoteCount = 0;
 }
 
 export function search(query: string, notes?: Note[]) {

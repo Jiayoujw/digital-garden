@@ -62,6 +62,8 @@ export const translations = {
     // Graph page
     no_graph_data: 'No graph data yet',
     no_graph_data_desc: 'Create notes with [[wikilinks]] to see your knowledge graph',
+    graph_search_placeholder: 'Search nodes...',
+    show_all: 'Show All',
 
     // Clusters page
     topic_clusters: 'Topic Clusters',
@@ -150,6 +152,8 @@ export const translations = {
     // Graph page
     no_graph_data: '暂无图谱数据',
     no_graph_data_desc: '创建包含 [[wikilinks]] 的笔记来生成知识图谱',
+    graph_search_placeholder: '搜索节点...',
+    show_all: '显示全部',
 
     // Clusters page
     topic_clusters: '主题聚类',

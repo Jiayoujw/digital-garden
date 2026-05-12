@@ -63,13 +63,13 @@ export default function ClustersPage() {
                 {cluster.noteCount} {cluster.noteCount === 1 ? t('note_singular') : t('note_plural')}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {cluster.noteSlugs.slice(0, 8).map((slug) => (
+                {(cluster.notes ?? cluster.noteSlugs.map(s => ({ slug: s, title: s }))).slice(0, 8).map((note) => (
                   <Link
-                    key={slug}
-                    href={`/note/${slug}`}
+                    key={note.slug}
+                    href={`/note/${note.slug}`}
                     className="px-2 py-1 rounded-md text-xs bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-subtle)] hover:text-[var(--color-accent-hover)] transition-colors"
                   >
-                    {slug}
+                    {note.title}
                   </Link>
                 ))}
                 {cluster.noteSlugs.length > 8 && (

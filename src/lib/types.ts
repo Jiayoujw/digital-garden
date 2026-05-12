@@ -32,17 +32,27 @@ export interface GraphNode {
   color?: string;
   group?: string;
   tags: string[];
+  ghost?: boolean;
+  x?: number;
+  y?: number;
+  z?: number;
 }
 
 export interface GraphLink {
   source: string;
   target: string;
   value: number;
+  ghost?: boolean;
 }
 
 export interface GraphData {
   nodes: GraphNode[];
   links: GraphLink[];
+}
+
+export interface ClusterNote {
+  slug: string;
+  title: string;
 }
 
 export interface Cluster {
@@ -51,6 +61,7 @@ export interface Cluster {
   color: string;
   noteSlugs: string[];
   noteCount: number;
+  notes?: ClusterNote[];
 }
 
 export interface DailyNoteSummary {

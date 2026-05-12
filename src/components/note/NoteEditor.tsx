@@ -25,6 +25,7 @@ export function NoteEditor({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [cursorIdx, setCursorIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -91,6 +92,29 @@ export function NoteEditor({
     }
   };
 
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [suggestions]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSuggestionClick(suggestions[highlightedIndex]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
   const handleSuggestionClick = (s: string) => {
     const before = content.slice(0, cursorIdx);
     const after = content.slice(cursorIdx);
@@ -136,17 +160,22 @@ export function NoteEditor({
           ref={textareaRef}
           value={content}
           onChange={handleContentChange}
+          onKeyDown={handleKeyDown}
           placeholder={t('start_writing')}
           className="w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] leading-relaxed"
         />
         {showSuggestions && (
           <div className="absolute bottom-0 left-0 right-0 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg p-2 max-h-32 overflow-y-auto shadow-xl">
             {suggestions.length > 0 ? (
-              suggestions.map((s) => (
+              suggestions.map((s, idx) => (
                 <button
                   key={s}
                   onClick={() => handleSuggestionClick(s)}
-                  className="block w-full text-left px-3 py-1.5 text-sm rounded hover:bg-[var(--color-accent-subtle)] transition-colors"
+                  className={`block w-full text-left px-3 py-1.5 text-sm rounded transition-colors ${
+                    idx === highlightedIndex
+                      ? 'bg-[var(--color-accent)] text-white'
+                      : 'hover:bg-[var(--color-accent-subtle)]'
+                  }`}
                 >
                   {s}
                 </button>

@@ -7,16 +7,19 @@ const PALETTE = [
 ];
 
 export function computeClusters(graphData: GraphData): Cluster[] {
-  if (graphData.nodes.length === 0) return [];
+  // Exclude ghost nodes from clustering
+  const realNodes = graphData.nodes.filter((n) => !n.ghost);
+  if (realNodes.length === 0) return [];
 
   const adjacency = new Map<string, Set<string>>();
-  for (const n of graphData.nodes) adjacency.set(n.id, new Set());
+  for (const n of realNodes) adjacency.set(n.id, new Set());
   for (const l of graphData.links) {
+    if (l.ghost) continue;
     adjacency.get(l.source)?.add(l.target);
     adjacency.get(l.target)?.add(l.source);
   }
 
-  const nodeIds = graphData.nodes.map((n) => n.id);
+  const nodeIds = realNodes.map((n) => n.id);
   const simGraph = new Map<string, Set<string>>();
   for (const id of nodeIds) simGraph.set(id, new Set());
 
