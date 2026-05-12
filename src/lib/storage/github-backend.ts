@@ -122,11 +122,13 @@ export class GitHubStorageBackend implements StorageBackend {
           const file = await this.apiGet(`/data/notes/${f.name}`);
           const rawContent = Buffer.from(file.content, 'base64').toString('utf-8');
           const parsed = matter(rawContent);
+          const u = parsed.data.updated;
+          const updated: string = u instanceof Date ? u.toISOString() : String(u ?? '');
           return {
             slug: f.name.replace(/\.md$/, ''),
             title: parsed.data.title ?? f.name.replace(/\.md$/, ''),
             tags: parsed.data.tags ?? [],
-            updated: parsed.data.updated ?? '',
+            updated,
           };
         })
       );
