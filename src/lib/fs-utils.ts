@@ -2,13 +2,14 @@ import type { Note, NoteFrontmatter, NoteSummary, DailyNoteSummary } from './typ
 import { getStorageBackend } from './storage';
 
 export function slugify(title: string): string {
-  return title
+  const result = title
     .trim()
     .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/[\s_]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+  return result || `note-${Date.now().toString(36)}`;
 }
 
 export function slugToFilename(slug: string): string {
