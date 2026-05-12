@@ -288,7 +288,7 @@ export class GitHubStorageBackend implements StorageBackend {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'DELETE',
       headers: { ...this.headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: `Delete: ${path}`, sha, branch: 'main' }),
+      body: JSON.stringify({ message: `Delete: ${path}`, sha, branch: this.branch }),
     });
     if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
   }

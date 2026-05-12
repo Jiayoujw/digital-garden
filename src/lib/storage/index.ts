@@ -14,7 +14,7 @@ export async function getStorageBackend(): Promise<StorageBackend> {
     _backend = new GitHubStorageBackend(
       process.env.GITHUB_TOKEN!,
       process.env.GITHUB_REPO ?? 'Jiayoujw/digital-garden',
-      process.env.GITHUB_BRANCH ?? 'main'
+      process.env.GITHUB_BRANCH ?? 'master'
     );
   } else {
     const { FsStorageBackend } = await import('./fs-backend');
