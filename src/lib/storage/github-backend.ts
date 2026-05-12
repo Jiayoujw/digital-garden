@@ -64,8 +64,6 @@ export class GitHubStorageBackend implements StorageBackend {
       created: frontmatter.created ?? new Date().toISOString(),
       updated: new Date().toISOString(),
     };
-    const rawContent = matter.stringify(content, fm);
-    const encoded = Buffer.from(rawContent, 'utf-8').toString('base64');
     const filePath = `data/notes/${slug}.md`;
 
     let sha: string | undefined;
@@ -78,6 +76,9 @@ export class GitHubStorageBackend implements StorageBackend {
     } catch (e: unknown) {
       if (!isNotFound(e)) throw e;
     }
+
+    const rawContent = matter.stringify(content, fm);
+    const encoded = Buffer.from(rawContent, 'utf-8').toString('base64');
 
     const body: Record<string, string> = {
       message: sha ? `Update note: ${fm.title}` : `Create note: ${fm.title}`,
@@ -173,17 +174,21 @@ export class GitHubStorageBackend implements StorageBackend {
       created: new Date().toISOString(),
       updated: new Date().toISOString(),
     };
-    const rawContent = matter.stringify(content, fm);
-    const encoded = Buffer.from(rawContent, 'utf-8').toString('base64');
     const filePath = `data/daily/${date}.md`;
 
     let sha: string | undefined;
     try {
       const existing = await this.apiGet(`/${filePath}`);
       sha = existing.sha;
+      // Preserve original created date
+      const parsed = matter(Buffer.from(existing.content, 'base64').toString('utf-8'));
+      if (parsed.data.created) fm.created = parsed.data.created;
     } catch (e: unknown) {
       if (!isNotFound(e)) throw e;
     }
+
+    const rawContent = matter.stringify(content, fm);
+    const encoded = Buffer.from(rawContent, 'utf-8').toString('base64');
 
     const body: Record<string, string> = {
       message: `Update daily note: ${date}`,

@@ -28,6 +28,8 @@ export function NoteEditor({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [cursorIdx, setCursorIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Track latest values for unmount save
+  const latestRef = useRef({ title: initialTitle, content: initialContent, tags: initialTags.join(', ') });
 
   const save = useCallback(
     async (titleVal: string, contentVal: string, tagsVal: string) => {
@@ -59,11 +61,47 @@ export function NoteEditor({
     setTitle(initialTitle);
     setContent(initialContent);
     setTags(initialTags.join(', '));
+    latestRef.current = { title: initialTitle, content: initialContent, tags: initialTags.join(', ') };
   }, [initialContent, initialTitle, initialTags, slug]);
 
+  // Flush pending save on unmount (user navigated away)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const { title: t, content: c, tags: tg } = latestRef.current;
+      // Fire-and-forget — can't block unmount
+      fetch(`/api/notes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: t,
+          content: c,
+          tags: tg
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        }),
+      }).catch(() => {});
+    };
+  }, [slug]);
+
   const debounceSave = (titleVal: string, contentVal: string, tagsVal: string) => {
+    latestRef.current = { title: titleVal, content: contentVal, tags: tagsVal };
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => save(titleVal, contentVal, tagsVal), 800);
+  };
+
+  const handleBlur = () => {
+    // Save immediately on blur (user clicked away)
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const { title: t, content: c, tags: tg } = latestRef.current;
+    save(t, c, tg);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -138,6 +176,7 @@ export function NoteEditor({
             setTitle(e.target.value);
             debounceSave(e.target.value, content, tags);
           }}
+          onBlur={handleBlur}
           className="flex-1 text-xl font-bold bg-transparent border-none outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
           placeholder={t('note_title_placeholder')}
         />
@@ -152,6 +191,7 @@ export function NoteEditor({
           setTags(e.target.value);
           debounceSave(title, content, e.target.value);
         }}
+        onBlur={handleBlur}
         className="text-xs mb-3 px-1 py-1 bg-transparent border-b border-[var(--color-border)] outline-none text-[var(--color-text-secondary)] placeholder-[var(--color-text-muted)]"
         placeholder={t('tags_placeholder')}
       />
@@ -161,6 +201,7 @@ export function NoteEditor({
           value={content}
           onChange={handleContentChange}
           onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
           placeholder={t('start_writing')}
           className="w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] leading-relaxed"
         />
