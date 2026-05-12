@@ -10,11 +10,13 @@ interface CacheEntry<T> {
 export class GitHubStorageBackend implements StorageBackend {
   private baseUrl: string;
   private headers: Record<string, string>;
+  private branch: string;
   private cache: Map<string, CacheEntry<unknown>>;
   private dirCacheTTL: number;
   private fileCacheTTL: number;
 
   constructor(token: string, repo: string, branch: string) {
+    this.branch = branch;
     this.baseUrl = `https://api.github.com/repos/${repo}/contents`;
     this.headers = {
       Authorization: `Bearer ${token}`,
@@ -80,7 +82,7 @@ export class GitHubStorageBackend implements StorageBackend {
     const body: Record<string, string> = {
       message: sha ? `Update note: ${fm.title}` : `Create note: ${fm.title}`,
       content: encoded,
-      branch: 'main',
+      branch: this.branch,
     };
     if (sha) body.sha = sha;
 
@@ -184,7 +186,7 @@ export class GitHubStorageBackend implements StorageBackend {
     const body: Record<string, string> = {
       message: `Update daily note: ${date}`,
       content: encoded,
-      branch: 'main',
+      branch: this.branch,
     };
     if (sha) body.sha = sha;
 
