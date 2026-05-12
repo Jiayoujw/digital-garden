@@ -130,7 +130,7 @@ export function Sidebar() {
       </div>
 
       {showCreateModal && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 w-80 shadow-2xl">
             <h2 className="text-lg font-semibold mb-4">{t('create_note')}</h2>
             <input
