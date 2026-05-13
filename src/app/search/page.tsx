@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Search, Sprout } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface SearchResult {
@@ -51,7 +52,7 @@ function SearchContent() {
 
       {!q.trim() && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <span className="text-4xl">🔍</span>
+          <Search size={48} className="text-[var(--color-text-muted)]" />
           <p className="text-[var(--color-text-muted)] text-lg">
             {t('search_your_notes')}
           </p>
@@ -69,7 +70,7 @@ function SearchContent() {
 
       {!loading && q && results.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <span className="text-4xl">🌱</span>
+          <Sprout size={48} className="text-[var(--color-text-muted)]" />
           <p className="text-[var(--color-text-muted)] text-lg">
             {t('no_notes_found')}
           </p>

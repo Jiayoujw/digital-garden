@@ -1,26 +1,38 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { useTheme } from '@/lib/theme/ThemeContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { templates } from '@/lib/templates';
+import {
+  LayoutDashboard, GitGraph, Calendar, Hexagon, Clock, Hash,
+  X, Dices, Plus
+} from 'lucide-react';
 import type { NoteSummary } from '@/lib/types';
 
-export function Sidebar() {
-  const { t } = useLanguage();
+export function Sidebar({ onCloseMobile }: { onCloseMobile?: () => void }) {
+  const { t, locale } = useLanguage();
+  const { theme, cycleTheme, themeInfo } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('blank');
 
-  const navItems = [
-    { href: '/', label: t('home'), icon: '◆' },
-    { href: '/graph', label: t('graph'), icon: '◎' },
-    { href: '/daily', label: t('daily'), icon: '◷' },
-    { href: '/clusters', label: t('clusters'), icon: '⬡' },
+  const iconSize = 16;
+
+  const navItems: { href: string; label: string; icon: ReactNode }[] = [
+    { href: '/', label: t('home'), icon: <LayoutDashboard size={iconSize} /> },
+    { href: '/graph', label: t('graph'), icon: <GitGraph size={iconSize} /> },
+    { href: '/daily', label: t('daily'), icon: <Calendar size={iconSize} /> },
+    { href: '/clusters', label: t('clusters'), icon: <Hexagon size={iconSize} /> },
+    { href: '/timeline', label: t('timeline'), icon: <Clock size={iconSize} /> },
+    { href: '/tags', label: t('tags'), icon: <Hash size={iconSize} /> },
   ];
 
   useEffect(() => {
@@ -39,10 +51,15 @@ export function Sidebar() {
   const handleCreate = async () => {
     const title = newTitle.trim();
     if (!title) return;
+    const tpl = templates.find((t) => t.id === selectedTemplate) ?? templates[0];
     const res = await fetch('/api/notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content: '', tags: [] }),
+      body: JSON.stringify({
+        title,
+        content: tpl.content,
+        tags: tpl.frontmatter.tags,
+      }),
     });
     if (res.ok) {
       const note = await res.json();
@@ -57,11 +74,29 @@ export function Sidebar() {
       <div className="p-4 border-b border-[var(--color-border)]">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold tracking-tight">
-            <Link href="/" className="hover:text-[var(--color-accent-hover)] transition-colors">
+            <Link href="/" className="hover:text-[var(--color-accent-hover)] transition-colors" onClick={onCloseMobile}>
               {t('digital_garden')}
             </Link>
           </h1>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={cycleTheme}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-sm hover:bg-[var(--color-bg-tertiary)] transition-colors"
+              title={themeInfo.name}
+            >
+              {themeInfo.icon}
+            </button>
+            <LanguageSwitcher />
+            {onCloseMobile && (
+              <button
+                onClick={onCloseMobile}
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-tertiary)] transition-colors lg:hidden"
+                aria-label="Close menu"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -70,13 +105,14 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onCloseMobile}
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
               pathname === item.href
                 ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-hover)]'
                 : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)]'
             }`}
           >
-            <span className="text-xs">{item.icon}</span>
+            <span className="flex items-center">{item.icon}</span>
             {item.label}
           </Link>
         ))}
@@ -93,12 +129,26 @@ export function Sidebar() {
         />
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2 flex gap-1.5">
         <button
           onClick={() => setShowCreateModal(true)}
-          className="w-full px-3 py-1.5 text-sm rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+          className="flex-1 px-3 py-1.5 text-sm rounded-lg bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           {t('new_note')}
+        </button>
+        <button
+          onClick={() => {
+            if (notes.length > 0) {
+              const random = notes[Math.floor(Math.random() * notes.length)];
+              router.push(`/note/${random.slug}`);
+              onCloseMobile?.();
+            }
+          }}
+          disabled={notes.length === 0}
+          className="px-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-40"
+          title={locale === 'zh' ? '随机漫步' : 'Random walk'}
+        >
+          <Dices size={14} />
         </button>
       </div>
 
@@ -111,6 +161,7 @@ export function Sidebar() {
             <li key={note.slug}>
               <Link
                 href={`/note/${note.slug}`}
+                onClick={onCloseMobile}
                 className={`block px-3 py-1.5 rounded-lg text-sm truncate transition-colors ${
                   pathname === `/note/${note.slug}`
                     ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-hover)]'
@@ -131,7 +182,7 @@ export function Sidebar() {
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 w-80 shadow-2xl">
+          <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-6 w-96 shadow-2xl">
             <h2 className="text-lg font-semibold mb-4">{t('create_note')}</h2>
             <input
               type="text"
@@ -142,9 +193,31 @@ export function Sidebar() {
               placeholder={t('note_title_prompt')}
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors text-sm"
             />
+            {/* Template selector */}
+            <p className="text-xs text-[var(--color-text-muted)] mt-3 mb-2 uppercase tracking-wider">
+              {t('template') ?? 'Template'}
+            </p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {templates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  onClick={() => setSelectedTemplate(tpl.id)}
+                  className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs transition-colors ${
+                    selectedTemplate === tpl.id
+                      ? 'bg-[var(--color-accent-subtle)] ring-1 ring-[var(--color-accent)] text-[var(--color-accent-hover)]'
+                      : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                  }`}
+                >
+                  <span className="flex items-center">{tpl.icon}</span>
+                  <span className="truncate w-full text-center">
+                    {locale === 'zh' ? tpl.nameZh : tpl.name}
+                  </span>
+                </button>
+              ))}
+            </div>
             <div className="flex gap-2 mt-4 justify-end">
               <button
-                onClick={() => { setShowCreateModal(false); setNewTitle(''); }}
+                onClick={() => { setShowCreateModal(false); setNewTitle(''); setSelectedTemplate('blank'); }}
                 className="px-4 py-1.5 rounded-lg text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
               >
                 {t('cancel')}

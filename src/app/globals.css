@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
+@import "katex/dist/katex.min.css";
 
 @theme inline {
   --color-bg-primary: #0f0f14;
@@ -68,4 +70,44 @@ body {
 .wikilink-missing {
   color: var(--color-text-muted);
   border-bottom: 1px dashed var(--color-danger);
+}
+
+/* Code highlighting — override highlight.js theme for dark background */
+.markdown-body pre code.hljs {
+  background: transparent;
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+/* Mermaid diagram container */
+.mermaid-container {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-error {
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+/* KaTeX math — ensure legibility on dark background */
+.markdown-body .katex {
+  font-size: 1.05em;
+}
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+
+/* Inline code inside markdown */
+.markdown-body p code {
+  background: var(--color-bg-tertiary);
+  color: var(--color-accent-hover);
 }

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { VoiceInput } from '@/components/shared/VoiceInput';
+import { Sparkles, FileText, MoveRight, Languages } from 'lucide-react';
 
 interface NoteEditorProps {
   slug: string;
@@ -16,7 +18,7 @@ export function NoteEditor({
   initialTitle,
   initialTags,
 }: NoteEditorProps) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [tags, setTags] = useState(initialTags.join(', '));
@@ -30,6 +32,11 @@ export function NoteEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Track latest values for unmount save
   const latestRef = useRef({ title: initialTitle, content: initialContent, tags: initialTags.join(', ') });
+
+  // AI assistant state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showAiToolbar, setShowAiToolbar] = useState(false);
+  const [aiSelection, setAiSelection] = useState<{ text: string; start: number; end: number } | null>(null);
 
   const save = useCallback(
     async (titleVal: string, contentVal: string, tagsVal: string) => {
@@ -46,6 +53,7 @@ export function NoteEditor({
               .map((tag) => tag.trim())
               .filter(Boolean),
           }),
+          keepalive: true,
         });
         setLastSaved(new Date());
       } catch {
@@ -72,7 +80,6 @@ export function NoteEditor({
         timerRef.current = null;
       }
       const { title: t, content: c, tags: tg } = latestRef.current;
-      // Fire-and-forget — can't block unmount
       fetch(`/api/notes/${slug}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -84,6 +91,7 @@ export function NoteEditor({
             .map((tag) => tag.trim())
             .filter(Boolean),
         }),
+        keepalive: true,
       }).catch(() => {});
     };
   }, [slug]);
@@ -95,7 +103,6 @@ export function NoteEditor({
   };
 
   const handleBlur = () => {
-    // Save immediately on blur (user clicked away)
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -103,6 +110,176 @@ export function NoteEditor({
     const { title: t, content: c, tags: tg } = latestRef.current;
     save(t, c, tg);
   };
+
+  // AI assistant
+  const handleSelect = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    if (start === end) {
+      setShowAiToolbar(false);
+      setAiSelection(null);
+      return;
+    }
+    const selectedText = content.slice(start, end).trim();
+    if (selectedText.length < 2) {
+      setShowAiToolbar(false);
+      setAiSelection(null);
+      return;
+    }
+    setAiSelection({ text: selectedText, start, end });
+    setShowAiToolbar(true);
+  }, [content]);
+
+  const handleAiAction = useCallback(
+    async (action: string) => {
+      if (!aiSelection) return;
+      setShowAiToolbar(false);
+      setAiLoading(true);
+      try {
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: aiSelection.text,
+            action,
+            language: locale,
+          }),
+        });
+        const data = await res.json();
+        if (data.text) {
+          // Replace selection with AI result
+          const newContent =
+            content.slice(0, aiSelection.start) +
+            '\n\n' +
+            data.text.trim() +
+            '\n\n' +
+            content.slice(aiSelection.end);
+          setContent(newContent);
+          debounceSave(title, newContent, tags);
+          // Restore focus and cursor position after replaced text
+          requestAnimationFrame(() => {
+            const ta = textareaRef.current;
+            if (ta) {
+              const newPos = aiSelection.start + data.text.trim().length + 4;
+              ta.focus();
+              ta.setSelectionRange(newPos, newPos);
+            }
+          });
+        }
+      } catch {
+        // silently fail
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [aiSelection, content, title, tags, debounceSave, locale]
+  );
+
+  // Voice input handler — insert transcribed text at cursor or end
+  const handleVoiceTranscript = useCallback(
+    (text: string) => {
+      const ta = textareaRef.current;
+      const pos = ta?.selectionStart ?? content.length;
+      const newContent = content.slice(0, pos) + text + ' ' + content.slice(pos);
+      setContent(newContent);
+      debounceSave(title, newContent, tags);
+    },
+    [content, title, tags, debounceSave]
+  );
+
+  // Image upload state
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // Insert base64 image at cursor
+  const insertImageMarkdown = useCallback(
+    (dataUrl: string, filename: string) => {
+      const ta = textareaRef.current;
+      const pos = ta?.selectionStart ?? content.length;
+      const md = `![${filename}](${dataUrl})`;
+      const newContent = content.slice(0, pos) + '\n' + md + '\n' + content.slice(pos);
+      setContent(newContent);
+      debounceSave(title, newContent, tags);
+      // Place cursor after inserted image
+      requestAnimationFrame(() => {
+        if (ta) {
+          const newPos = pos + md.length + 2;
+          ta.focus();
+          ta.setSelectionRange(newPos, newPos);
+        }
+      });
+    },
+    [content, title, tags, debounceSave]
+  );
+
+  // Handle image paste (Ctrl+V)
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          setImageUploading(true);
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            insertImageMarkdown(reader.result as string, file.name || 'image');
+            setImageUploading(false);
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    },
+    [insertImageMarkdown]
+  );
+
+  // Handle image drag & drop
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+          e.preventDefault();
+          setImageUploading(true);
+          const reader = new FileReader();
+          reader.onload = () => {
+            insertImageMarkdown(reader.result as string, file.name);
+            setImageUploading(false);
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    },
+    [insertImageMarkdown]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer?.types.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  // Auto-hide AI toolbar on Escape
+  useEffect(() => {
+    if (!showAiToolbar) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowAiToolbar(false);
+        setAiSelection(null);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showAiToolbar]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -196,15 +373,51 @@ export function NoteEditor({
         placeholder={t('tags_placeholder')}
       />
       <div className="flex-1 relative">
+        <div className="absolute top-0 right-0 z-10">
+          <VoiceInput onTranscript={handleVoiceTranscript} />
+        </div>
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleContentChange}
           onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
+          onSelect={handleSelect}
+          onPaste={handlePaste}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onBlur={() => {
+            // Delay blur to let select/click events fire first
+            setTimeout(() => {
+              handleBlur();
+              setShowAiToolbar(false);
+            }, 200);
+          }}
           placeholder={t('start_writing')}
           className="w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] leading-relaxed"
         />
+        {(aiLoading || imageUploading) && (
+          <div className="absolute top-2 right-2 flex items-center gap-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-secondary)] shadow-lg z-20">
+            <div className="animate-spin w-3 h-3 border-2 border-[var(--color-accent)] border-t-transparent rounded-full" />
+            {aiLoading ? 'AI generating...' : 'Uploading image...'}
+          </div>
+        )}
+        {showAiToolbar && aiSelection && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl px-2 py-1.5 shadow-xl z-20">
+            {(['polish', 'summarize', 'expand', 'translate'] as const).map((action) => (
+              <button
+                key={action}
+                onClick={() => handleAiAction(action)}
+                className="px-2.5 py-1 text-xs rounded-lg transition-colors text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-accent-subtle)]"
+                title={action}
+              >
+                {action === 'polish' && <><Sparkles size={12} className="inline mr-0.5" />{locale === 'zh' ? '润色' : 'Polish'}</>}
+                {action === 'summarize' && <><FileText size={12} className="inline mr-0.5" />{locale === 'zh' ? '总结' : 'Summarize'}</>}
+                {action === 'expand' && <><MoveRight size={12} className="inline mr-0.5" />{locale === 'zh' ? '扩展' : 'Expand'}</>}
+                {action === 'translate' && <><Languages size={12} className="inline mr-0.5" />{locale === 'zh' ? '翻译' : 'Translate'}</>}
+              </button>
+            ))}
+          </div>
+        )}
         {showSuggestions && (
           <div className="absolute bottom-0 left-0 right-0 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg p-2 max-h-32 overflow-y-auto shadow-xl">
             {suggestions.length > 0 ? (

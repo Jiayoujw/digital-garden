@@ -8,6 +8,8 @@ export const translations = {
     graph: 'Graph',
     daily: 'Daily',
     clusters: 'Clusters',
+    timeline: 'Timeline',
+    tags: 'Tags',
     digital_garden: '🌱 Digital Garden',
     search_notes: 'Search notes...',
     new_note: '+ New Note',
@@ -16,6 +18,7 @@ export const translations = {
     note_title_prompt: 'Note title',
     create_note: 'Create Note',
     cancel: 'Cancel',
+    template: 'Template',
 
     // SearchBar
     search_your_garden: 'Search your garden...',
@@ -87,6 +90,9 @@ export const translations = {
     match_percent: '{p}% match',
     no_content: 'No content',
 
+    // Random note
+    random_note: '🎲 Random',
+
     // Metadata
     html_title: 'Digital Garden',
     html_description: 'Personal knowledge graph & second brain',
@@ -98,6 +104,8 @@ export const translations = {
     graph: '图谱',
     daily: '日记',
     clusters: '聚类',
+    timeline: '时间线',
+    tags: '标签',
     digital_garden: '🌱 数字花园',
     search_notes: '搜索笔记...',
     new_note: '+ 新建笔记',
@@ -106,6 +114,7 @@ export const translations = {
     note_title_prompt: '笔记标题',
     create_note: '创建笔记',
     cancel: '取消',
+    template: '模板',
 
     // SearchBar
     search_your_garden: '搜索你的花园...',
@@ -176,6 +185,9 @@ export const translations = {
     try_different_keywords: '试试其他关键词',
     match_percent: '{p}% 匹配',
     no_content: '暂无内容',
+
+    // Random note
+    random_note: '🎲 随机漫步',
 
     // Metadata
     html_title: '数字花园',

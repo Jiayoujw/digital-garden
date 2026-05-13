@@ -5,6 +5,10 @@ import { NoteEditor } from '@/components/note/NoteEditor';
 import { NotePreview } from '@/components/note/NotePreview';
 import { BacklinksPanel } from '@/components/note/BacklinksPanel';
 import { TagList } from '@/components/note/TagList';
+import { VersionHistory } from '@/components/note/VersionHistory';
+import { SuggestedLinks } from '@/components/note/SuggestedLinks';
+import { NoteSidebar } from '@/components/note/NoteSidebar';
+import { ExportButton } from '@/components/shared/ExportButton';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { Note } from '@/lib/types';
 
@@ -14,6 +18,24 @@ export default function NotePage({ params }: { params: Promise<{ slug: string }>
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'edit' | 'preview' | 'split'>('edit');
+  const [versionKey, setVersionKey] = useState(0);
+
+  const handleVersionRestore = async (content: string) => {
+    await fetch(`/api/notes/${slug}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: note?.frontmatter.title ?? slug,
+        content,
+        tags: note?.frontmatter.tags ?? [],
+      }),
+    });
+    // Reload note data and force editor remount
+    const res = await fetch(`/api/notes/${slug}`);
+    const data = await res.json();
+    if (!data.error) setNote(data);
+    setVersionKey((k) => k + 1);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -57,62 +79,75 @@ export default function NotePage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-6 h-full flex flex-col">
-      <div className="flex items-center gap-2 mb-4">
-        {(['edit', 'preview', 'split'] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-              mode === m
-                ? 'bg-[var(--color-accent)] text-white'
-                : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-            }`}
-          >
-            {t(m)}
-          </button>
-        ))}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          {(['edit', 'preview', 'split'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                mode === m
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              {t(m)}
+            </button>
+          ))}
+        </div>
+        {note && (
+          <ExportButton
+            title={note.frontmatter.title}
+            content={note.rawContent || note.content}
+            slug={note.slug}
+          />
+        )}
       </div>
 
-      {mode === 'edit' && (
-        <div className="flex-1">
+      {/* Always mount editor — hidden in preview mode — so state survives mode switches */}
+      <div className={mode === 'preview' ? 'hidden' : mode === 'split' ? 'flex-1 grid grid-cols-2 gap-6 overflow-hidden' : 'flex-1'}>
+        <div className="overflow-hidden">
           <NoteEditor
+            key={`${note.slug}-${versionKey}`}
             slug={note.slug}
             initialContent={note.content}
             initialTitle={note.frontmatter.title}
             initialTags={note.frontmatter.tags}
           />
         </div>
-      )}
+        {mode === 'split' && (
+          <div className="flex gap-4 overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              <h1 className="text-xl font-bold mb-3">{note.frontmatter.title}</h1>
+              <TagList tags={note.frontmatter.tags} />
+              <div className="mt-4">
+                <NotePreview content={note.content} />
+              </div>
+            </div>
+            <NoteSidebar content={note.content} />
+          </div>
+        )}
+      </div>
       {mode === 'preview' && (
-        <div className="flex-1 overflow-y-auto">
-          <h1 className="text-2xl font-bold mb-4">{note.frontmatter.title}</h1>
-          <TagList tags={note.frontmatter.tags} />
-          <div className="mt-4">
-            <NotePreview content={note.content} />
-          </div>
-        </div>
-      )}
-      {mode === 'split' && (
-        <div className="flex-1 grid grid-cols-2 gap-6 overflow-hidden">
-          <div className="overflow-hidden">
-            <NoteEditor
-              slug={note.slug}
-              initialContent={note.content}
-              initialTitle={note.frontmatter.title}
-              initialTags={note.frontmatter.tags}
-            />
-          </div>
-          <div className="overflow-y-auto">
-            <h1 className="text-xl font-bold mb-3">{note.frontmatter.title}</h1>
+        <div className="flex-1 flex gap-6 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            <h1 className="text-2xl font-bold mb-4">{note.frontmatter.title}</h1>
             <TagList tags={note.frontmatter.tags} />
             <div className="mt-4">
               <NotePreview content={note.content} />
             </div>
           </div>
+          <NoteSidebar content={note.content} />
         </div>
       )}
 
       <BacklinksPanel slug={slug} />
+      <SuggestedLinks slug={slug} />
+      <VersionHistory
+        slug={slug}
+        currentContent={note.content}
+        onRestore={handleVersionRestore}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Hexagon } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { Cluster } from '@/lib/types';
 
@@ -37,7 +38,7 @@ export default function ClustersPage() {
 
       {clusters.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <span className="text-4xl">⬡</span>
+          <Hexagon size={48} className="text-[var(--color-text-muted)]" />
           <p className="text-[var(--color-text-muted)] text-lg">
             {t('no_clusters_yet')}
           </p>

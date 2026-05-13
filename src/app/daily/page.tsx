@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { format, subDays, addDays, startOfWeek, isToday } from 'date-fns';
+import { format, addDays, startOfWeek, isToday } from 'date-fns';
 import { enUS, zhCN } from 'date-fns/locale';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { Heatmap } from '@/components/daily/Heatmap';
+import { VoiceInput } from '@/components/shared/VoiceInput';
 
 export default function DailyPage() {
   const { t, locale } = useLanguage();
@@ -28,6 +30,11 @@ export default function DailyPage() {
       .then(setDailyNotes)
       .catch(() => {});
   }, [selectedDate]);
+
+  const dailyNotesSet = useMemo(
+    () => new Set(dailyNotes.map((n) => n.date)),
+    [dailyNotes]
+  );
 
   const save = async () => {
     setSaving(true);
@@ -54,6 +61,16 @@ export default function DailyPage() {
   return (
     <div className="max-w-4xl mx-auto px-8 py-6 h-full flex flex-col">
       <h1 className="text-2xl font-bold mb-6">{t('daily_notes')}</h1>
+
+      {/* Heatmap */}
+      <div className="mb-6 bg-[var(--color-bg-secondary)] rounded-xl p-4 border border-[var(--color-border)]">
+        <Heatmap
+          dailyNotes={dailyNotesSet}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          locale={locale}
+        />
+      </div>
 
       <div className="flex items-center justify-between mb-4">
         <button
@@ -86,7 +103,7 @@ export default function DailyPage() {
                 ? 'bg-[var(--color-accent)] text-white'
                 : isToday(new Date(d))
                   ? 'bg-[var(--color-accent-subtle)] text-[var(--color-accent-hover)]'
-                  : dailyNotes.some((n) => n.date === d)
+                  : dailyNotesSet.has(d)
                     ? 'bg-[var(--color-bg-secondary)] border border-[var(--color-text-muted)] text-[var(--color-text-secondary)]'
                     : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-muted)]'
             }`}
@@ -103,13 +120,18 @@ export default function DailyPage() {
         {format(new Date(selectedDate), 'PPP', { locale: dateLocale })}
       </h2>
 
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onBlur={save}
-        placeholder={t('whats_on_mind')}
-        className="flex-1 w-full min-h-[300px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors leading-relaxed"
-      />
+      <div className="relative flex-1">
+        <div className="absolute top-3 right-3 z-10">
+          <VoiceInput onTranscript={(text) => setContent((prev) => prev + text + ' ')} />
+        </div>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onBlur={save}
+          placeholder={t('whats_on_mind')}
+          className="w-full h-full min-h-[300px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors leading-relaxed"
+        />
+      </div>
 
       <div className="flex justify-between items-center mt-3">
         <span className="text-xs text-[var(--color-text-muted)]">

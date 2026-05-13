@@ -1,11 +1,31 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { AppShell } from '@/components/layout/AppShell';
 import { Providers } from '@/components/layout/Providers';
+import { ServiceWorker } from '@/components/shared/ServiceWorker';
 
 export const metadata: Metadata = {
-  title: 'Digital Garden',
-  description: 'Personal knowledge graph & second brain',
+  title: {
+    default: 'Digital Garden',
+    template: '%s | Digital Garden',
+  },
+  description: 'Personal knowledge graph & second brain — grow ideas with [[wikilinks]]',
+  keywords: ['digital garden', 'knowledge graph', 'notes', 'second brain', 'wikilinks'],
+  robots: { index: true, follow: true },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+  },
+  openGraph: {
+    title: 'Digital Garden',
+    description: 'Personal knowledge graph & second brain',
+    type: 'website',
+  },
+};
+
+export const viewport = {
+  themeColor: '#6366f1',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,10 +33,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="h-full">
       <body className="h-full flex overflow-hidden">
         <Providers>
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto bg-[var(--color-bg-primary)]">
-            {children}
-          </main>
+          <AppShell>{children}</AppShell>
+          <ServiceWorker />
         </Providers>
       </body>
     </html>
