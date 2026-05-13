@@ -6,7 +6,7 @@ tags:
   - search
   - fetch
 created: 2026-05-12T00:00:00.000Z
-updated: '2026-05-13T04:26:57.876Z'
+updated: '2026-05-13T04:46:02.360Z'
 ---
 
 # Claude Code Web 能力
