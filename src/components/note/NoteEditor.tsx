@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { VoiceInput } from '@/components/shared/VoiceInput';
 import { Sparkles, FileText, MoveRight, Languages } from 'lucide-react';
+import { useAutoSave } from '@/lib/useAutoSave';
 
 interface NoteEditorProps {
   slug: string;
@@ -19,127 +20,112 @@ export function NoteEditor({
   initialTags,
 }: NoteEditorProps) {
   const { t, locale } = useLanguage();
-  const [title, setTitle] = useState(initialTitle);
-  const [content, setContent] = useState(initialContent);
+  const [title, setTitleState] = useState(initialTitle);
   const [tags, setTags] = useState(initialTags.join(', '));
   const [saving, setSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleLatestRef = useRef({ title: initialTitle, tags: initialTags.join(', ') });
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [cursorIdx, setCursorIdx] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Track latest values for unmount save
-  const latestRef = useRef({ title: initialTitle, content: initialContent, tags: initialTags.join(', ') });
 
   // AI assistant state
   const [aiLoading, setAiLoading] = useState(false);
   const [showAiToolbar, setShowAiToolbar] = useState(false);
   const [aiSelection, setAiSelection] = useState<{ text: string; start: number; end: number } | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
-  const save = useCallback(
-    async (titleVal: string, contentVal: string, tagsVal: string) => {
-      setSaving(true);
+  // ── Local-first persistence for content ──
+  const saveContentToServer = useCallback(
+    async (contentVal: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/notes/${slug}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: titleLatestRef.current.title,
+            content: contentVal,
+            tags: titleLatestRef.current.tags
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean),
+          }),
+          keepalive: true,
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+    [slug]
+  );
+
+  const {
+    content,
+    status: contentStatus,
+    lastSavedAt,
+    setContent,
+    saveNow,
+    restoredFromBackup,
+  } = useAutoSave({
+    storageKey: `garden-draft-${slug}`,
+    initialContent,
+    saveToServer: saveContentToServer,
+  });
+
+  // ── Title/tags save (secondary — debounced server save) ──
+  const saveTitleAndTags = useCallback(
+    async (titleVal: string, tagsVal: string) => {
       try {
         await fetch(`/api/notes/${slug}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: titleVal,
-            content: contentVal,
+            content,
             tags: tagsVal
               .split(',')
-              .map((tag) => tag.trim())
+              .map((t) => t.trim())
               .filter(Boolean),
           }),
           keepalive: true,
         });
-        setLastSaved(new Date());
       } catch {
         // silently fail
-      } finally {
-        setSaving(false);
       }
     },
-    [slug]
+    [slug, content]
   );
 
-  // Reset state only when editing a different note (slug change).
-  // Do NOT depend on initialContent/initialTitle/initialTags — they are
-  // reference types (array) that change on every parent re-render (e.g. mode
-  // switch), which would overwrite in-flight user edits.
-  useEffect(() => {
-    setTitle(initialTitle);
-    setContent(initialContent);
-    setTags(initialTags.join(', '));
-    latestRef.current = { title: initialTitle, content: initialContent, tags: initialTags.join(', ') };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  const debounceTitle = (titleVal: string, tagsVal: string) => {
+    titleLatestRef.current = { title: titleVal, tags: tagsVal };
+    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+    titleTimerRef.current = setTimeout(() => saveTitleAndTags(titleVal, tagsVal), 800);
+  };
 
-  // Flush pending save on unmount (user navigated away)
+  // Cleanup title timer on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      const { title: t, content: c, tags: tg } = latestRef.current;
-      fetch(`/api/notes/${slug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: t,
-          content: c,
-          tags: tg
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        }),
-        keepalive: true,
-      }).catch(() => {});
+      if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
     };
-  }, [slug]);
+  }, []);
 
-  // beforeunload safety net (tab close, browser close)
+  // Reset title/tags when note changes
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      const { title: t, content: c, tags: tg } = latestRef.current;
-      fetch(`/api/notes/${slug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: t,
-          content: c,
-          tags: tg
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        }),
-        keepalive: true,
-      }).catch(() => {});
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [slug]);
+    setTitleState(initialTitle);
+    setTags(initialTags.join(', '));
+    titleLatestRef.current = { title: initialTitle, tags: initialTags.join(', ') };
+  }, [slug, initialTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const debounceSave = (titleVal: string, contentVal: string, tagsVal: string) => {
-    latestRef.current = { title: titleVal, content: contentVal, tags: tagsVal };
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => save(titleVal, contentVal, tagsVal), 800);
-  };
+  // ── Derived saving state ──
+  useEffect(() => {
+    if (contentStatus === 'saving') setSaving(true);
+    else setSaving(false);
+  }, [contentStatus]);
 
-  const handleBlur = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    const { title: t, content: c, tags: tg } = latestRef.current;
-    save(t, c, tg);
-  };
-
-  // AI assistant
+  // ── AI assistant ──
   const handleSelect = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -177,7 +163,6 @@ export function NoteEditor({
         });
         const data = await res.json();
         if (data.text) {
-          // Replace selection with AI result
           const newContent =
             content.slice(0, aiSelection.start) +
             '\n\n' +
@@ -185,8 +170,6 @@ export function NoteEditor({
             '\n\n' +
             content.slice(aiSelection.end);
           setContent(newContent);
-          debounceSave(title, newContent, tags);
-          // Restore focus and cursor position after replaced text
           requestAnimationFrame(() => {
             const ta = textareaRef.current;
             if (ta) {
@@ -202,25 +185,21 @@ export function NoteEditor({
         setAiLoading(false);
       }
     },
-    [aiSelection, content, title, tags, debounceSave, locale]
+    [aiSelection, content, setContent, locale]
   );
 
-  // Voice input handler — insert transcribed text at cursor or end
+  // Voice input
   const handleVoiceTranscript = useCallback(
     (text: string) => {
       const ta = textareaRef.current;
       const pos = ta?.selectionStart ?? content.length;
       const newContent = content.slice(0, pos) + text + ' ' + content.slice(pos);
       setContent(newContent);
-      debounceSave(title, newContent, tags);
     },
-    [content, title, tags, debounceSave]
+    [content, setContent]
   );
 
-  // Image upload state
-  const [imageUploading, setImageUploading] = useState(false);
-
-  // Insert base64 image at cursor
+  // Image handlers
   const insertImageMarkdown = useCallback(
     (dataUrl: string, filename: string) => {
       const ta = textareaRef.current;
@@ -228,8 +207,6 @@ export function NoteEditor({
       const md = `![${filename}](${dataUrl})`;
       const newContent = content.slice(0, pos) + '\n' + md + '\n' + content.slice(pos);
       setContent(newContent);
-      debounceSave(title, newContent, tags);
-      // Place cursor after inserted image
       requestAnimationFrame(() => {
         if (ta) {
           const newPos = pos + md.length + 2;
@@ -238,10 +215,9 @@ export function NoteEditor({
         }
       });
     },
-    [content, title, tags, debounceSave]
+    [content, setContent]
   );
 
-  // Handle image paste (Ctrl+V)
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -266,7 +242,6 @@ export function NoteEditor({
     [insertImageMarkdown]
   );
 
-  // Handle image drag & drop
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       const files = e.dataTransfer?.files;
@@ -309,10 +284,10 @@ export function NoteEditor({
     return () => window.removeEventListener('keydown', handleKey);
   }, [showAiToolbar]);
 
+  // ── Wikilink autocomplete ──
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
-    debounceSave(title, val, tags);
 
     const pos = e.target.selectionStart;
     const before = val.slice(0, pos);
@@ -323,9 +298,10 @@ export function NoteEditor({
       fetch('/api/notes')
         .then((r) => r.json())
         .then((notes: { slug: string; title: string }[]) => {
-          const filtered = notes.filter((n) =>
-            n.slug.startsWith(match[1].toLowerCase()) ||
-            n.title.toLowerCase().includes(match[1].toLowerCase())
+          const filtered = notes.filter(
+            (n) =>
+              n.slug.startsWith(match[1].toLowerCase()) ||
+              n.title.toLowerCase().includes(match[1].toLowerCase())
           );
           setSuggestions(filtered.map((n) => n.slug));
         });
@@ -371,6 +347,26 @@ export function NoteEditor({
     }
   };
 
+  const statusDot =
+    contentStatus === 'saving'
+      ? 'bg-yellow-400'
+      : contentStatus === 'saved'
+        ? 'bg-green-400'
+        : contentStatus === 'error'
+          ? 'bg-red-400'
+          : 'bg-transparent';
+
+  const statusText =
+    contentStatus === 'saving'
+      ? t('saving')
+      : contentStatus === 'saved' && lastSavedAt
+        ? `${t('saved')} ${lastSavedAt.toLocaleTimeString()}`
+        : contentStatus === 'error'
+          ? '⚠ Saved locally'
+          : restoredFromBackup
+            ? '📋 Restored draft'
+            : '';
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-1 pb-3 border-b border-[var(--color-border)] mb-3">
@@ -378,25 +374,38 @@ export function NoteEditor({
           type="text"
           value={title}
           onChange={(e) => {
-            setTitle(e.target.value);
-            debounceSave(e.target.value, content, tags);
+            setTitleState(e.target.value);
+            debounceTitle(e.target.value, tags);
           }}
-          onBlur={handleBlur}
+          onBlur={() => {
+            if (titleTimerRef.current) {
+              clearTimeout(titleTimerRef.current);
+              titleTimerRef.current = null;
+            }
+            saveTitleAndTags(titleLatestRef.current.title, titleLatestRef.current.tags);
+          }}
           className="flex-1 text-xl font-bold bg-transparent border-none outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
           placeholder={t('note_title_placeholder')}
         />
-        <span className="text-xs text-[var(--color-text-muted)] shrink-0">
-          {saving ? t('saving') : lastSaved ? `${t('saved')} ${lastSaved.toLocaleTimeString()}` : ''}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+          <span className="text-xs text-[var(--color-text-muted)]">{statusText}</span>
+        </div>
       </div>
       <input
         type="text"
         value={tags}
         onChange={(e) => {
           setTags(e.target.value);
-          debounceSave(title, content, e.target.value);
+          debounceTitle(title, e.target.value);
         }}
-        onBlur={handleBlur}
+        onBlur={() => {
+          if (titleTimerRef.current) {
+            clearTimeout(titleTimerRef.current);
+            titleTimerRef.current = null;
+          }
+          saveTitleAndTags(titleLatestRef.current.title, titleLatestRef.current.tags);
+        }}
         className="text-xs mb-3 px-1 py-1 bg-transparent border-b border-[var(--color-border)] outline-none text-[var(--color-text-secondary)] placeholder-[var(--color-text-muted)]"
         placeholder={t('tags_placeholder')}
       />
@@ -414,11 +423,8 @@ export function NoteEditor({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onBlur={() => {
-            // Delay blur to let select/click events fire first
-            setTimeout(() => {
-              handleBlur();
-              setShowAiToolbar(false);
-            }, 200);
+            saveNow();
+            setTimeout(() => setShowAiToolbar(false), 200);
           }}
           placeholder={t('start_writing')}
           className="w-full h-full min-h-[400px] bg-transparent border-none outline-none resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] leading-relaxed"
@@ -447,7 +453,7 @@ export function NoteEditor({
           </div>
         )}
         {showSuggestions && (
-          <div className="absolute bottom-0 left-0 right-0 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg p-2 max-h-32 overflow-y-auto shadow-xl">
+          <div className="absolute bottom-0 left-0 right-0 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg p-2 max-h-32 overflow-y-auto shadow-xl z-10">
             {suggestions.length > 0 ? (
               suggestions.map((s, idx) => (
                 <button

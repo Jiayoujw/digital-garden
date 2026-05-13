@@ -1,42 +1,28 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { format, addDays, startOfWeek, isToday } from 'date-fns';
 import { enUS, zhCN } from 'date-fns/locale';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { Heatmap } from '@/components/daily/Heatmap';
 import { VoiceInput } from '@/components/shared/VoiceInput';
+import { useAutoSave } from '@/lib/useAutoSave';
 
 export default function DailyPage() {
   const { t, locale } = useLanguage();
   const dateLocale = locale === 'zh' ? zhCN : enUS;
   const today = format(new Date(), 'yyyy-MM-dd');
   const [selectedDate, setSelectedDate] = useState(today);
-  const [content, setContent] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [initialContent, setInitialContent] = useState('');
   const [dailyNotes, setDailyNotes] = useState<{ date: string; title: string }[]>([]);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestRef = useRef({ date: today, content: '' });
-  const currentDateRef = useRef(selectedDate);
-
-  // Keep currentDateRef in sync
-  currentDateRef.current = selectedDate;
 
   // Load content when date changes
   useEffect(() => {
-    setSaving(false);
     fetch(`/api/daily/${selectedDate}`)
       .then((r) => r.json())
-      .then((d) => {
-        const c = d.content ?? '';
-        setContent(c);
-        latestRef.current = { date: selectedDate, content: c };
-      })
-      .catch(() => {
-        setContent('');
-        latestRef.current = { date: selectedDate, content: '' };
-      });
+      .then((d) => setInitialContent(d.content ?? ''))
+      .catch(() => setInitialContent(''));
   }, [selectedDate]);
 
   useEffect(() => {
@@ -51,78 +37,39 @@ export default function DailyPage() {
     [dailyNotes]
   );
 
-  const doSave = useCallback(async (date: string, contentVal: string) => {
-    try {
-      await fetch(`/api/daily/${date}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: contentVal }),
-        keepalive: true,
-      });
-    } catch {
-      // silently fail
-    }
-  }, []);
-
-  const save = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    setSaving(true);
-    const { date, content: c } = latestRef.current;
-    doSave(date, c).finally(() => setSaving(false));
-  }, [doSave]);
-
-  // Debounced auto-save
-  const debounceSave = useCallback(
-    (date: string, contentVal: string) => {
-      latestRef.current = { date, content: contentVal };
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setSaving(true);
-        doSave(date, contentVal).finally(() => setSaving(false));
-      }, 800);
+  const saveToServer = useCallback(
+    async (contentVal: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/daily/${selectedDate}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: contentVal }),
+          keepalive: true,
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
     },
-    [doSave]
+    [selectedDate]
   );
 
-  // Flush pending save on unmount (navigation away)
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      const { date, content: c } = latestRef.current;
-      fetch(`/api/daily/${date}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: c }),
-        keepalive: true,
-      }).catch(() => {});
-    };
-  }, []);
-
-  // beforeunload safety net (tab close, browser close)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      const { date, content: c } = latestRef.current;
-      fetch(`/api/daily/${date}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: c }),
-        keepalive: true,
-      }).catch(() => {});
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  const {
+    content,
+    status,
+    lastSavedAt,
+    setContent,
+    saveNow,
+    restoredFromBackup,
+  } = useAutoSave({
+    storageKey: `garden-daily-${selectedDate}`,
+    initialContent,
+    saveToServer,
+  });
 
   const navigateDate = (days: number) => {
     // Save current content before navigating
-    save();
+    saveNow();
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + days);
     setSelectedDate(format(d, 'yyyy-MM-dd'));
@@ -133,6 +80,26 @@ export default function DailyPage() {
     const d = addDays(weekStart, i);
     return format(d, 'yyyy-MM-dd');
   });
+
+  const statusDot =
+    status === 'saving'
+      ? 'bg-yellow-400'
+      : status === 'saved'
+        ? 'bg-green-400'
+        : status === 'error'
+          ? 'bg-red-400'
+          : 'bg-transparent';
+
+  const statusLabel =
+    status === 'saving'
+      ? t('saving')
+      : status === 'saved' && lastSavedAt
+        ? `${t('saved')} ${lastSavedAt.toLocaleTimeString()}`
+        : status === 'error'
+          ? '⚠ Saved locally'
+          : restoredFromBackup
+            ? '📋 Restored draft'
+            : t('auto_saves');
 
   return (
     <div className="max-w-4xl mx-auto px-8 py-6 h-full flex flex-col">
@@ -156,7 +123,10 @@ export default function DailyPage() {
           {t('prev')}
         </button>
         <button
-          onClick={() => setSelectedDate(today)}
+          onClick={() => {
+            saveNow();
+            setSelectedDate(today);
+          }}
           className="px-4 py-1.5 rounded-lg bg-[var(--color-accent)] text-white text-sm hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           {t('today')}
@@ -173,7 +143,10 @@ export default function DailyPage() {
         {weekDays.map((d) => (
           <button
             key={d}
-            onClick={() => setSelectedDate(d)}
+            onClick={() => {
+              saveNow();
+              setSelectedDate(d);
+            }}
             className={`flex-1 py-2 rounded-lg text-center text-xs transition-colors ${
               d === selectedDate
                 ? 'bg-[var(--color-accent)] text-white'
@@ -198,31 +171,22 @@ export default function DailyPage() {
 
       <div className="relative flex-1">
         <div className="absolute top-3 right-3 z-10">
-          <VoiceInput
-            onTranscript={(text) => {
-              const newContent = latestRef.current.content + text + ' ';
-              setContent(newContent);
-              debounceSave(currentDateRef.current, newContent);
-            }}
-          />
+          <VoiceInput onTranscript={(text) => setContent(content + text + ' ')} />
         </div>
         <textarea
           value={content}
-          onChange={(e) => {
-            const val = e.target.value;
-            setContent(val);
-            debounceSave(currentDateRef.current, val);
-          }}
-          onBlur={save}
+          onChange={(e) => setContent(e.target.value)}
+          onBlur={saveNow}
           placeholder={t('whats_on_mind')}
           className="w-full h-full min-h-[300px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors leading-relaxed"
         />
       </div>
 
       <div className="flex justify-between items-center mt-3">
-        <span className="text-xs text-[var(--color-text-muted)]">
-          {saving ? t('saving') : t('auto_saves')}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+          <span className="text-xs text-[var(--color-text-muted)]">{statusLabel}</span>
+        </div>
         <Link
           href="/daily"
           className="text-xs text-[var(--color-accent-hover)] hover:underline"
