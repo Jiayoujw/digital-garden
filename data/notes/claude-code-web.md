@@ -1,8 +1,12 @@
 ---
 title: Claude Code Web 能力
-tags: [claude-code, web, search, fetch]
+tags:
+  - claude-code
+  - web
+  - search
+  - fetch
 created: 2026-05-12T00:00:00.000Z
-updated: 2026-05-12T00:00:00.000Z
+updated: '2026-05-13T01:09:02.939Z'
 ---
 
 # Claude Code Web 能力
