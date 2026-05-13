@@ -1,8 +1,13 @@
 ---
 title: Claude Code 代码分析工具
-tags: [claude-code, analysis, search, glob, grep]
+tags:
+  - claude-code
+  - analysis
+  - search
+  - glob
+  - grep
 created: 2026-05-12T00:00:00.000Z
-updated: 2026-05-12T00:00:00.000Z
+updated: '2026-05-13T01:08:38.222Z'
 ---
 
 # Claude Code 代码分析工具
