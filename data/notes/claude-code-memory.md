@@ -6,7 +6,7 @@ tags:
   - claude-md
   - personalization
 created: 2026-05-12T00:00:00.000Z
-updated: '2026-05-13T04:46:36.782Z'
+updated: '2026-05-13T05:09:49.078Z'
 ---
 
 # Claude Code 持久记忆系统
