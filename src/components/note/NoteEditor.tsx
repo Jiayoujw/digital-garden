@@ -65,12 +65,17 @@ export function NoteEditor({
     [slug]
   );
 
+  // Reset state only when editing a different note (slug change).
+  // Do NOT depend on initialContent/initialTitle/initialTags — they are
+  // reference types (array) that change on every parent re-render (e.g. mode
+  // switch), which would overwrite in-flight user edits.
   useEffect(() => {
     setTitle(initialTitle);
     setContent(initialContent);
     setTags(initialTags.join(', '));
     latestRef.current = { title: initialTitle, content: initialContent, tags: initialTags.join(', ') };
-  }, [initialContent, initialTitle, initialTags, slug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   // Flush pending save on unmount (user navigated away)
   useEffect(() => {
@@ -94,6 +99,29 @@ export function NoteEditor({
         keepalive: true,
       }).catch(() => {});
     };
+  }, [slug]);
+
+  // beforeunload safety net (tab close, browser close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      const { title: t, content: c, tags: tg } = latestRef.current;
+      fetch(`/api/notes/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: t,
+          content: c,
+          tags: tg
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [slug]);
 
   const debounceSave = (titleVal: string, contentVal: string, tagsVal: string) => {

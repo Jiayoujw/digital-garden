@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { format, addDays, startOfWeek, isToday } from 'date-fns';
 import { enUS, zhCN } from 'date-fns/locale';
@@ -16,12 +16,27 @@ export default function DailyPage() {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [dailyNotes, setDailyNotes] = useState<{ date: string; title: string }[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef = useRef({ date: today, content: '' });
+  const currentDateRef = useRef(selectedDate);
 
+  // Keep currentDateRef in sync
+  currentDateRef.current = selectedDate;
+
+  // Load content when date changes
   useEffect(() => {
+    setSaving(false);
     fetch(`/api/daily/${selectedDate}`)
       .then((r) => r.json())
-      .then((d) => setContent(d.content ?? ''))
-      .catch(() => setContent(''));
+      .then((d) => {
+        const c = d.content ?? '';
+        setContent(c);
+        latestRef.current = { date: selectedDate, content: c };
+      })
+      .catch(() => {
+        setContent('');
+        latestRef.current = { date: selectedDate, content: '' };
+      });
   }, [selectedDate]);
 
   useEffect(() => {
@@ -36,17 +51,78 @@ export default function DailyPage() {
     [dailyNotes]
   );
 
-  const save = async () => {
+  const doSave = useCallback(async (date: string, contentVal: string) => {
+    try {
+      await fetch(`/api/daily/${date}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: contentVal }),
+        keepalive: true,
+      });
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  const save = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     setSaving(true);
-    await fetch(`/api/daily/${selectedDate}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    });
-    setSaving(false);
-  };
+    const { date, content: c } = latestRef.current;
+    doSave(date, c).finally(() => setSaving(false));
+  }, [doSave]);
+
+  // Debounced auto-save
+  const debounceSave = useCallback(
+    (date: string, contentVal: string) => {
+      latestRef.current = { date, content: contentVal };
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        setSaving(true);
+        doSave(date, contentVal).finally(() => setSaving(false));
+      }, 800);
+    },
+    [doSave]
+  );
+
+  // Flush pending save on unmount (navigation away)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const { date, content: c } = latestRef.current;
+      fetch(`/api/daily/${date}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: c }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+  }, []);
+
+  // beforeunload safety net (tab close, browser close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      const { date, content: c } = latestRef.current;
+      fetch(`/api/daily/${date}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: c }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const navigateDate = (days: number) => {
+    // Save current content before navigating
+    save();
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + days);
     setSelectedDate(format(d, 'yyyy-MM-dd'));
@@ -122,11 +198,21 @@ export default function DailyPage() {
 
       <div className="relative flex-1">
         <div className="absolute top-3 right-3 z-10">
-          <VoiceInput onTranscript={(text) => setContent((prev) => prev + text + ' ')} />
+          <VoiceInput
+            onTranscript={(text) => {
+              const newContent = latestRef.current.content + text + ' ';
+              setContent(newContent);
+              debounceSave(currentDateRef.current, newContent);
+            }}
+          />
         </div>
         <textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setContent(val);
+            debounceSave(currentDateRef.current, val);
+          }}
           onBlur={save}
           placeholder={t('whats_on_mind')}
           className="w-full h-full min-h-[300px] bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl p-5 resize-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-accent)] transition-colors leading-relaxed"
