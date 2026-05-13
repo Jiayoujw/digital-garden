@@ -1,8 +1,12 @@
 ---
 title: Claude Code MCP 服务器与扩展
-tags: [claude-code, mcp, extensions, tools]
+tags:
+  - claude-code
+  - mcp
+  - extensions
+  - tools
 created: 2026-05-12T00:00:00.000Z
-updated: 2026-05-12T00:00:00.000Z
+updated: '2026-05-13T01:36:58.506Z'
 ---
 
 # Claude Code MCP 服务器与扩展
